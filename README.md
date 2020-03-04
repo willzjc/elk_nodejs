@@ -32,6 +32,7 @@ A general description of what is used in this project. Details in [docker-compos
 | Elasticsearch | Data engine using Lucene indices, backend for books and metrics |
 | Kibana | Front end for Elasticsearch |
 | Logtrail | Live log tailer plugin - this is integrated as part of the [init script](scripts/setup-kibana-logtrail.sh) |
+| Logstash | Log enrichment and tokenizer (can be used for log scraping though Filebeat is better at the function) |
 | Filebeat | Log shipper |
 | NodeJS API | [Booksearch applet host](Dockerfile). Loads a preselection of 100 open community books on init |
 | VueJS Frontend (NGINX) | Book search applet frontend |
