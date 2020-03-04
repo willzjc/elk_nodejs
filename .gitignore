@@ -1,0 +1,8 @@
+**/*~
+package
+.swp
+.*.swp
+*.swp
+.idea
+.idea/*
+.venv

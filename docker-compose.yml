@@ -1,0 +1,240 @@
+---
+version: '3'
+services:
+  # The environment variable "TAG" is used throughout this file to
+  # specify the version of the images to run. The default is set in the
+  # '.env' file in this folder. It can be overridden with any normal
+  # technique for setting environment variables, for example:
+  #
+  #   TAG=6.0.0-beta1 docker-compose up
+  #
+  # REF: https://docs.docker.com/compose/compose-file/#variable-substitution
+  #
+  # Also be sure to set the ELASTIC_VERSION variable. For released versions,
+  # ${TAG} and ${ELASTIC_VERSION} will be identical, but for pre-release
+  # versions, ${TAG} might contain an extra build identifier, like
+  # "6.0.0-beta1-3eab5b40", so a full invocation might look like:
+  #
+  #   ELASTIC_VERSION=6.0.0-beta1 TAG=6.0.0-beta1-3eab5b40 docker-compose up
+  #
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${TAG}
+    container_name: elasticsearch
+    environment: ['http.host=0.0.0.0', 'transport.host=127.0.0.1']
+    ports: ['0.0.0.0:9200:9200']
+    networks:
+     - network
+    command: ['/bin/bash', '-c', 'if /usr/share/elasticsearch/bin/elasticsearch-plugin list | grep ingest-geoip  ; then echo PLUGIN_ALREADY_INSTALLED ; else /usr/share/elasticsearch/bin/elasticsearch-plugin install ingest-geoip; fi ; /usr/local/bin/docker-entrypoint.sh']
+    restart: on-failure
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${TAG}
+    container_name: kibana
+    ports: ['0.0.0.0:5601:5601']
+    networks:
+     - network
+    depends_on: ['elasticsearch']
+    volumes:
+     - ./config/kibana/logtrail/:/usr/share/kibana/logtrail_package/
+     - ./config/kibana/logtrail_colored.json:/etc/logtrail.json
+     - "./scripts/containerized-setup-kibana-logtrail.sh:/usr/share/kibana/containerized-setup-kibana-logtrail.sh"
+    environment: # Set ENV vars
+      - TAG=${TAG}
+    command: ['/bin/bash', '-c', './containerized-setup-kibana-logtrail.sh ; /usr/local/bin/kibana-docker']
+    restart: on-failure
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:${TAG}
+    container_name: logstash
+    # Provide a simple pipeline configuration for Logstash with a bind-mounted file.
+    volumes:
+      - ./config/logstash/general:/opt/logstash/general
+      - ./config/logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./config/logstash/logstash.yml:/opt/logstash/config/logstash.yml
+    networks:
+     - network
+    ports: ['0.0.0.0:1062:1062','0.0.0.0:5000:5000','0.0.0.0:5044:5044','0.0.0.0:5062:5062']
+    depends_on: ['elasticsearch']
+    command: ['/bin/bash', '-c', 'if /usr/share/logstash/bin/logstash-plugin list | grep logstash-filter-fix_protocol  ; then echo 1 ; else /usr/share/logstash/bin/logstash-plugin install logstash-filter-fix_protocol ; fi ; /usr/local/bin/docker-entrypoint']
+    restart: on-failure
+
+  logspout:
+    image: bekt/logspout-logstash
+    #image: logspout
+    container_name: logspout
+    restart: on-failure
+    # command: logstash+tcp://logstash:5000
+    environment:
+      ROUTE_URIS: logstash+tcp://${LOGSPOUT_HOST}:5000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+     - network
+    depends_on: ['logstash']
+
+
+  setup_filebeat:
+    image: docker.elastic.co/beats/filebeat:${TAG}
+    container_name: setup_filebeat
+    volumes: ['./scripts/setup-beat.sh:/usr/local/bin/setup-beat.sh:ro']
+    command: ['/bin/bash', '-c', 'cat /usr/local/bin/setup-beat.sh | tr -d "\r" | bash -s filebeat']
+    networks:
+     - network
+    depends_on: ['kibana']
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:${TAG}
+    container_name: filebeat
+    # If the host system has logs at "/var/log", mount them at "/mnt/log"
+    # inside the container, where Filebeat can find them.
+    volumes: ['/var/log:/mnt/log:ro']
+    networks:
+     - network
+    depends_on: ['elasticsearch', 'setup_filebeat']
+    command: ['/bin/bash', '-c', '/usr/share/filebeat/filebeat modules enable system postgresql logstash nginx elasticsearch; /usr/local/bin/docker-entrypoint ""']
+    environment:
+      - HOSTNAME=FilebeatHost
+
+  # auditbeat:
+  #   image: docker.elastic.co/beats/auditbeat:${TAG}
+  #   container_name: auditbeat
+  #   cap_add: ['AUDIT_CONTROL', 'AUDIT_READ']
+  #   # Auditbeat must run in the main process namespace.
+  #   pid: host
+  #   networks:
+  #    - network
+  #   depends_on: ['elasticsearch']
+
+  # heartbeat:
+  #   image: docker.elastic.co/beats/heartbeat:${TAG}
+  #   container_name: heartbeat
+  #   networks:
+  #    - network
+  #   depends_on: ['elasticsearch', 'setup_heartbeat']
+
+  # metricbeat:
+  #   image: docker.elastic.co/beats/metricbeat:${TAG}
+  #   container_name: metricbeat
+  #   # The commented sections below enable Metricbeat to monitor the Docker host,
+  #   # rather than the Metricbeat container. It's problematic with Docker for
+  #   # Windows, however, since "/proc", "/sys" etc. don't exist on Windows.
+  #   # The same likely applies to OSX (needs testing).
+  #   # volumes:
+  #   #   - /proc:/hostfs/proc:ro
+  #   #   - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
+  #   #   - /:/hostfs:ro
+  #   networks:
+  #    - network
+  #   depends_on: ['elasticsearch', 'setup_metricbeat']
+
+  # packetbeat:
+  #   image: docker.elastic.co/beats/packetbeat:${TAG}
+  #   container_name: packetbeat
+  #   # Packetbeat needs some elevated privileges to capture network traffic.
+  #   # We'll grant them with POSIX capabilities.
+  #   cap_add: ['NET_RAW', 'NET_ADMIN']
+  #   # Use "host mode" networking to allow Packetbeat to capture traffic from
+  #   # the real network interface on the host, rather than being isolated to the
+  #   # container's virtual interface.
+  #   network_mode: host
+  #   # Since we did that, Packetbeat is not part of the "stack" Docker network
+  #   # that the other containers are connected to, and thus can't resolve the
+  #   # hostname "elasticsearch". Instead, we'll tell it to find Elasticsearch
+  #   # on "localhost", which is the Docker host machine in this context.
+  #   command: -e -E 'output.elasticsearch.hosts=["localhost:9200"]'
+  #   depends_on: ['elasticsearch']
+
+  # apm_server:
+  #   image: docker.elastic.co/apm/apm-server:${TAG}
+  #   container_name: apm_server
+  #   ports: ['127.0.0.1:8200:8200']
+  #   networks:
+  #    - network
+  #   depends_on: ['elasticsearch','setup_apm_server']
+
+  # # Run short-lived containers to set up the Beats.
+  # setup_auditbeat:
+  #   image: docker.elastic.co/beats/auditbeat:${TAG}
+  #   container_name: setup_auditbeat
+  #   volumes: ['./scripts/setup-beat.sh:/usr/local/bin/setup-beat.sh:ro']
+  #   # The script may have CR/LF line endings if using Docker for Windows, so
+  #   # remove them so that they won't confuse Bash.
+  #   command: ['/bin/bash', '-c', 'cat /usr/local/bin/setup-beat.sh | tr -d "\r" | bash -s auditbeat']
+  #   networks:
+  #    - network
+  #   depends_on: ['kibana']
+
+  # setup_heartbeat:
+  #   image: docker.elastic.co/beats/heartbeat:${TAG}
+  #   container_name: setup_heartbeat
+  #   volumes: ['./scripts/setup-beat.sh:/usr/local/bin/setup-beat.sh:ro']
+  #   command: ['/bin/bash', '-c', 'cat /usr/local/bin/setup-beat.sh | tr -d "\r" | bash -s heartbeat']
+  #   networks:
+  #    - network
+  #   depends_on: ['kibana']
+
+  # setup_metricbeat:
+  #   image: docker.elastic.co/beats/metricbeat:${TAG}
+  #   container_name: setup_metricbeat
+  #   volumes: ['./scripts/setup-beat.sh:/usr/local/bin/setup-beat.sh:ro']
+  #   command: ['/bin/bash', '-c', 'cat /usr/local/bin/setup-beat.sh | tr -d "\r" | bash -s metricbeat']
+  #   networks:
+  #    - network
+  #   depends_on: ['kibana']
+
+  # setup_packetbeat:
+  #   image: docker.elastic.co/beats/packetbeat:${TAG}
+  #   container_name: setup_packetbeat
+  #   cap_add: ['NET_RAW', 'NET_ADMIN']
+  #   volumes: ['./scripts/setup-beat.sh:/usr/local/bin/setup-beat.sh:ro']
+  #   command: ['/bin/bash', '-c', 'cat /usr/local/bin/setup-beat.sh | tr -d "\r" | bash -s packetbeat']
+  #   networks:
+  #    - network
+  #   depends_on: ['kibana']
+
+  # setup_apm_server:
+  #   image: docker.elastic.co/apm/apm-server:${TAG}
+  #   container_name: setup_apm_server
+  #   volumes: ['./scripts/setup-beat.sh:/usr/local/bin/setup-beat.sh:ro']
+  #   command: ['/bin/bash', '-c', 'cat /usr/local/bin/setup-beat.sh | tr -d "\r" | bash -s apm-server']
+  #   networks:
+  #    - network
+  #   depends_on: ['elasticsearch','kibana']
+
+  # nodejs_api: # Node.js App
+  vuejs_api: # Node.js App
+    container_name: vuejs_api
+    build: .
+    ports:
+      - "3001:3001" # Expose API port
+      - "9229:9229" # Expose Node process debug port (disable in production)
+    environment:    # Set ENV vars
+      - NODE_ENV=local
+      - ES_HOST=elasticsearch
+      - PORT=3001
+    volumes:        # Attach local book data directory
+      - ./books:/books
+    depends_on: ['elasticsearch','kibana']
+    networks:
+      - network
+    command: ['/bin/bash', '-c', 'unzip /books/books.zip && node /usr/src/app/server/load_data.js && npm start && sleep infinity']
+
+  # nodejs_frontend: # Nginx Server For Frontend App
+  vuejs_frontend: # Nginx Server For Frontend App
+    container_name: vuejs_frontend
+    image: nginx
+    volumes:                                  # Serve local "public" dir
+      - ./public:/usr/share/nginx/html
+    ports:
+      - "28082:80"                            # Host port 28082 --> container port 80
+    depends_on: ['elasticsearch','kibana']
+    networks:
+      - network
+
+networks:
+  network:
+    driver: bridge
+    # ipam:
+    #   config:
+    #     - subnet: 100.64.14.160/27
