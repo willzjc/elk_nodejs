@@ -5,6 +5,7 @@ Elastic Stack, all running on a single machine under Docker.
 ## Starting the stack
 Go to base path, then run
 ```
+# Requires approximately 5 minutes of setup time AFTER images successfully finish downloading and containers deployed
 docker-compose up -d
 ```
 To create a demonstration Elastic Stack with a search engine for books,
