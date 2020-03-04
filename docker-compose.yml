@@ -218,7 +218,7 @@ services:
     depends_on: ['elasticsearch','kibana']
     networks:
       - network
-    command: ['/bin/bash', '-c', 'unzip -o /books/books.zip && node /usr/src/app/server/load_data.js && npm start && sleep infinity']
+    command: ['/bin/bash', '-c', 'unzip -o /books/books.zip && sleep 360 && node /usr/src/app/server/load_data.js && npm start && sleep infinity']
 
   # nodejs_frontend: # Nginx Server For Frontend App
   vuejs_frontend: # Nginx Server For Frontend App
