@@ -3,9 +3,15 @@ This example Docker Compose configuration demonstrates many components of the
 Elastic Stack, all running on a single machine under Docker.
 
 ## Starting the stack
-Try `docker-compose up` to create a demonstration Elastic Stack with a search engine for books,
+Go to base path, then run
+```
+docker-compose up -d
+```
+To create a demonstration Elastic Stack with a search engine for books,
 Elasticsearch, Kibana, Logstash, Filebeatm (and also APM Server, Auditbeat, Metricbeat,
 Packetbeat, and Heartbeat, but they are commented out)
+
+This will take approximately 5 minutes for Kibana and books to be loaded into Elasticsearch
 
 ### Front end for book searching
 A demostration of how quickly NodeJS can fetch search results in real time.
