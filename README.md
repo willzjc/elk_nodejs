@@ -11,7 +11,8 @@ To create a demonstration Elastic Stack with a search engine for books,
 Elasticsearch, Kibana, Logstash, Filebeatm (and also APM Server, Auditbeat, Metricbeat,
 Packetbeat, and Heartbeat, but they are commented out)
 
-This will take approximately 5 minutes for Kibana and books to be loaded into Elasticsearch
+This will take approximately 5 minutes for Kibana to be setup with Logtrail,
+and books to be loaded into Elasticsearch
 
 ### Front end for book searching
 A demostration of how quickly NodeJS can fetch search results in real time.
@@ -24,7 +25,21 @@ Point a browser at [`http://localhost:5601`](http://localhost:5601) to see the r
 ![Kibana frontend for Elasticsearch](screenshots/kibana-logtrail.png)
 
 
-## Prerequisites
+# Technology stack
+A general description of what is used in this project.
+| Technology | Function |
+|-|-|
+| Elasticsearch | Data engine using Lucene indices, backend for books and metrics |
+| Kibana | Front end for Elasticsearch |
+| Logtrail | Live log tailer plugin - this is integrated as part of the [init script](scripts/setup-kibana-logtrail.sh) |
+| Filebeat | Log shipper |
+| NodeJS API | Booksearch applet host |
+| VueJS Frontend (NGINX) | Book search applet frontend |
+| APM | (Commented out) Application performance monitoring - Expand to application metrics with Elastic APM |
+| Heartbeat | (Commented out) Checks if an application is alive |
+| Auditbeat | (Commented out) Linux audit framework data and monitor the integrity of files |
+
+# Prerequisites
 - Docker and Compose. Windows and Mac users get Compose installed automatically
 with Docker. Linux users can:
 ```
