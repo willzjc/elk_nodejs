@@ -21,6 +21,7 @@ Point a browser at [`http://localhost:28082`](http://localhost:28082) to see the
 ### Kibana frontend
 The original ELK stack's frontend
 Point a browser at [`http://localhost:5601`](http://localhost:5601) to see the results.
+![Kibana frontend for Elasticsearch](screenshots/kibana-logtrail.png)
 
 
 ## Prerequisites
