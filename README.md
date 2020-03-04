@@ -26,14 +26,14 @@ Point a browser at [`http://localhost:5601`](http://localhost:5601) to see the r
 
 
 # Technology stack
-A general description of what is used in this project.
+A general description of what is used in this project. Details in [docker-compose.yml](docker-compose.yml)
 | Technology | Function |
 |-|-|
 | Elasticsearch | Data engine using Lucene indices, backend for books and metrics |
 | Kibana | Front end for Elasticsearch |
 | Logtrail | Live log tailer plugin - this is integrated as part of the [init script](scripts/setup-kibana-logtrail.sh) |
 | Filebeat | Log shipper |
-| NodeJS API | Booksearch applet host |
+| NodeJS API | [Booksearch applet host](Dockerfile). Loads a preselection of 100 open community books on init |
 | VueJS Frontend (NGINX) | Book search applet frontend |
 | APM | (Commented out) Application performance monitoring - Expand to application metrics with Elastic APM |
 | Heartbeat | (Commented out) Checks if an application is alive |
